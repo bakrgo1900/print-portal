@@ -342,56 +342,66 @@ export default function PrintSession() {
               </div>
             )}
 
-            {/* Drop zone */}
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => {
-                if (!isSessionReady) {
-                  toast.info("Please wait — session is initializing...");
-                  return;
-                }
-                fileInputRef.current?.click();
-              }}
-              className={`relative border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-200 ${
-                isSessionReady ? "cursor-pointer" : "cursor-not-allowed opacity-60"
-              } ${
-                isDragging
-                  ? "border-primary bg-accent/40 scale-[1.01]"
-                  : "border-border hover:border-primary/50 hover:bg-accent/20"
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.docx,.jpg,.jpeg,.png"
-                className="hidden"
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-              />
-              {isUploading ? (
-                <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                  <p className="text-sm font-medium text-foreground">Uploading & counting pages...</p>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".pdf,.docx,.jpg,.jpeg,.png,image/*"
+              capture={undefined}
+              className="hidden"
+              onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+            />
+
+            {/* Primary Upload Button — large & obvious on mobile */}
+            {isUploading ? (
+              <div className="flex flex-col items-center justify-center gap-4 py-10 rounded-2xl bg-accent/30 border-2 border-dashed border-primary/30">
+                <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                <div className="text-center">
+                  <p className="font-semibold text-foreground">Uploading files...</p>
+                  <p className="text-sm text-muted-foreground mt-1">Counting pages automatically</p>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center">
-                    <Upload className="w-7 h-7 text-accent-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-foreground mb-1">
-                      Drop files here or click to browse
-                    </p>
-                    <p className="text-xs text-muted-foreground">PDF, DOCX, JPG, PNG — Max 50MB each</p>
-                  </div>
+              </div>
+            ) : (
+              <button
+                disabled={!isSessionReady}
+                onClick={() => {
+                  if (!isSessionReady) {
+                    toast.info("Please wait — session is initializing...");
+                    return;
+                  }
+                  fileInputRef.current?.click();
+                }}
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length > 0) handleFileUpload(e.dataTransfer.files); }}
+                className={`w-full flex flex-col items-center justify-center gap-5 py-12 px-6 rounded-2xl border-2 border-dashed transition-all duration-200 ${
+                  !isSessionReady
+                    ? "opacity-50 cursor-not-allowed border-border bg-muted/30"
+                    : isDragging
+                    ? "border-primary bg-primary/5 scale-[1.01]"
+                    : "border-primary/40 bg-primary/3 hover:border-primary hover:bg-primary/8 active:scale-[0.99] cursor-pointer"
+                }`}
+              >
+                <div className="w-20 h-20 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
+                  <Upload className="w-10 h-10 text-primary-foreground" />
                 </div>
-              )}
-            </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-foreground mb-1">Tap to upload files</p>
+                  <p className="text-sm text-muted-foreground">PDF, Word, JPG, PNG</p>
+                  <p className="text-xs text-muted-foreground mt-1 hidden sm:block">or drag &amp; drop here</p>
+                </div>
+                {isSessionReady && (
+                  <div className="flex gap-2 flex-wrap justify-center">
+                    {["PDF", "DOCX", "JPG", "PNG"].map((fmt) => (
+                      <span key={fmt} className="text-xs px-2.5 py-1 rounded-full bg-background border border-border text-muted-foreground font-medium">
+                        {fmt}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            )}
 
             {/* Uploaded files list */}
             {files.length > 0 && (
