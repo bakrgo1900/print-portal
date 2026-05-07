@@ -364,6 +364,13 @@ export default function AdminDevices() {
                   alt="QR Code"
                   className="w-56 h-56 mx-auto rounded-xl border border-border"
                 />
+                {/* Show the encoded URL so admin can verify it's the correct domain */}
+                <div className="bg-muted/60 rounded-lg px-3 py-2 text-left">
+                  <p className="text-xs text-muted-foreground mb-1 font-medium">Encoded URL:</p>
+                  <p className="text-xs text-foreground font-mono break-all leading-relaxed">
+                    {window.location.origin}/print/{qrDevice?.qrToken}
+                  </p>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Scan to start a print session at {qrDevice?.name}
                 </p>

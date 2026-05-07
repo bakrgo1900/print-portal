@@ -55,8 +55,8 @@
 
 ## Mobile UX Fixes
 
-- [ ] QR code URL must point directly to /print/:qrToken (upload page), not the homepage
+- [x] QR code URL must point directly to /print/:qrToken (upload page), not the homepage
 - [x] Add large visible "Upload Files" button on mobile (not just drag-and-drop zone)
 - [x] Add camera/gallery file picker support for mobile (accept images from camera)
 - [x] Make the upload area mobile-friendly with a tap-to-upload button
-- [ ] Verify the QR code generated in admin panel uses the correct deployed URL
+- [x] Verify the QR code generated in admin panel uses the correct deployed URL — uses window.location.origin, so always matches the deployed site URL
