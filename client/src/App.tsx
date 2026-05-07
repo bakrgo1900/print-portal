@@ -4,34 +4,77 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+
+// User-facing portal pages
 import Home from "./pages/Home";
+import PrintSession from "./pages/PrintSession";
+import JobStatus from "./pages/JobStatus";
+
+// Admin panel pages
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminDevices from "./pages/admin/AdminDevices";
+import AdminJobs from "./pages/admin/AdminJobs";
+import AdminJobDetail from "./pages/admin/AdminJobDetail";
+import AdminSettings from "./pages/admin/AdminSettings";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+      {/* User-facing portal */}
+      <Route path="/" component={Home} />
+      <Route path="/print/:qrToken" component={PrintSession} />
+      <Route path="/status/:sessionToken" component={JobStatus} />
+
+      {/* Admin panel */}
+      <Route path="/admin">
+        {() => (
+          <AdminLayout>
+            <AdminDashboard />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/devices">
+        {() => (
+          <AdminLayout>
+            <AdminDevices />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/jobs">
+        {() => (
+          <AdminLayout>
+            <AdminJobs />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/jobs/:id">
+        {() => (
+          <AdminLayout>
+            <AdminJobDetail />
+          </AdminLayout>
+        )}
+      </Route>
+      <Route path="/admin/settings">
+        {() => (
+          <AdminLayout>
+            <AdminSettings />
+          </AdminLayout>
+        )}
+      </Route>
+
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <Toaster />
+          <Toaster position="top-right" richColors />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
