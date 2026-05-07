@@ -13,6 +13,7 @@ vi.mock("./db", () => ({
   updateDevice: vi.fn(),
   deleteDevice: vi.fn(),
   createPrintJob: vi.fn(),
+  getPendingJobByDeviceId: vi.fn().mockResolvedValue(undefined),
   getPrintJobBySessionToken: vi.fn(),
   getPrintJobById: vi.fn(),
   listPrintJobs: vi.fn().mockResolvedValue([]),
@@ -255,7 +256,8 @@ describe("session.getDeviceByToken", () => {
 
 describe("session.createSession", () => {
   it("creates a new session for a valid device", async () => {
-    const { getDeviceByQrToken, createPrintJob } = await import("./db");
+    const { getDeviceByQrToken, createPrintJob, getPendingJobByDeviceId } = await import("./db");
+    vi.mocked(getPendingJobByDeviceId).mockResolvedValueOnce(undefined);
     vi.mocked(getDeviceByQrToken).mockResolvedValueOnce({
       id: 1,
       name: "Test Device",

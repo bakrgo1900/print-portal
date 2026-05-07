@@ -2,8 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -21,7 +20,6 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
-  File,
 } from "lucide-react";
 
 type UploadedFile = {
@@ -33,15 +31,39 @@ type UploadedFile = {
   fileSizeBytes: number;
 };
 
-type Step = "upload" | "summary" | "payment" | "confirmed";
+type Step = "upload" | "summary" | "payment";
+
+// Persist session token per qrToken in localStorage
+function getStoredSession(qrToken: string): string | null {
+  try {
+    return localStorage.getItem(`printportal_session_${qrToken}`);
+  } catch {
+    return null;
+  }
+}
+function storeSession(qrToken: string, token: string) {
+  try {
+    localStorage.setItem(`printportal_session_${qrToken}`, token);
+  } catch {
+    // ignore
+  }
+}
+function clearStoredSession(qrToken: string) {
+  try {
+    localStorage.removeItem(`printportal_session_${qrToken}`);
+  } catch {
+    // ignore
+  }
+}
 
 export default function PrintSession() {
   const { qrToken } = useParams<{ qrToken: string }>();
   const [, navigate] = useLocation();
 
   const [step, setStep] = useState<Step>("upload");
-  const [sessionToken, setSessionToken] = useState<string | null>(null);
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [sessionToken, setSessionToken] = useState<string | null>(() =>
+    qrToken ? getStoredSession(qrToken) : null
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -49,7 +71,11 @@ export default function PrintSession() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get device info by QR token
-  const { data: device, isLoading: deviceLoading, error: deviceError } = trpc.session.getDeviceByToken.useQuery(
+  const {
+    data: device,
+    isLoading: deviceLoading,
+    error: deviceError,
+  } = trpc.session.getDeviceByToken.useQuery(
     { qrToken: qrToken ?? "" },
     { enabled: !!qrToken }
   );
@@ -58,17 +84,53 @@ export default function PrintSession() {
   const createSession = trpc.session.createSession.useMutation({
     onSuccess: (data) => {
       setSessionToken(data.sessionToken);
+      if (qrToken) storeSession(qrToken, data.sessionToken);
     },
     onError: (err) => {
       toast.error("Failed to create session: " + err.message);
     },
   });
 
-  // Get job data
-  const { data: jobData, refetch: refetchJob } = trpc.session.getJob.useQuery(
+  // Get job data — this is the source of truth for files
+  const {
+    data: jobData,
+    isLoading: jobLoading,
+    refetch: refetchJob,
+  } = trpc.session.getJob.useQuery(
     { sessionToken: sessionToken ?? "" },
-    { enabled: !!sessionToken, refetchInterval: step === "payment" ? 3000 : false }
+    {
+      enabled: !!sessionToken,
+      refetchInterval: step === "payment" ? 3000 : false,
+      retry: false,
+    }
   );
+
+  // Derive files from server job data (source of truth)
+  const files: UploadedFile[] = (jobData?.files ?? []).map((f) => ({
+    id: f.id,
+    fileName: f.fileName,
+    fileType: f.fileType,
+    pageCount: f.pageCount,
+    copies: f.copies,
+    fileSizeBytes: f.fileSizeBytes ?? 0,
+  }));
+
+  // If stored session is invalid/expired, clear it and create a new one
+  useEffect(() => {
+    if (!qrToken || !device) return;
+    if (sessionToken && jobData === null) {
+      // Session not found on server — clear and recreate
+      clearStoredSession(qrToken);
+      setSessionToken(null);
+    }
+  }, [jobData, sessionToken, qrToken, device]);
+
+  // Auto-create session when device is loaded and no valid session exists
+  useEffect(() => {
+    if (device && !sessionToken && !createSession.isPending) {
+      createSession.mutate({ qrToken: qrToken ?? "" });
+    }
+  }, [device, sessionToken, qrToken]);
 
   // Update file copies
   const updateCopies = trpc.session.updateFileCopies.useMutation({
@@ -77,10 +139,7 @@ export default function PrintSession() {
 
   // Delete file
   const deleteFile = trpc.session.deleteFile.useMutation({
-    onSuccess: (_, vars) => {
-      setFiles((prev) => prev.filter((f) => f.id !== vars.fileId));
-      refetchJob();
-    },
+    onSuccess: () => refetchJob(),
   });
 
   // Submit for payment
@@ -96,7 +155,7 @@ export default function PrintSession() {
   // Confirm payment (MVP: manual trigger)
   const confirmPayment = trpc.session.confirmPayment.useMutation({
     onSuccess: () => {
-      setStep("confirmed");
+      if (qrToken) clearStoredSession(qrToken);
       if (sessionToken) {
         navigate(`/status/${sessionToken}`);
       }
@@ -106,23 +165,14 @@ export default function PrintSession() {
     },
   });
 
-  // Auto-create session when device is loaded
-  useEffect(() => {
-    if (device && !sessionToken && !createSession.isPending) {
-      createSession.mutate({ qrToken: qrToken ?? "" });
-    }
-  }, [device, qrToken]);
-
   const pricePerPage = parseFloat(device?.pricePerPage?.toString() ?? "0.50");
-
-  // Calculate totals from files
   const totalPages = files.reduce((sum, f) => sum + f.pageCount * f.copies, 0);
   const totalCost = (totalPages * pricePerPage).toFixed(2);
 
   const handleFileUpload = useCallback(
     async (fileList: FileList) => {
       if (!sessionToken) {
-        toast.error("Session not ready. Please wait.");
+        toast.error("Session not ready. Please wait a moment.");
         return;
       }
 
@@ -143,16 +193,18 @@ export default function PrintSession() {
           throw new Error(err.error ?? "Upload failed");
         }
 
-        const data = await response.json() as { files: UploadedFile[] };
-        setFiles((prev) => [...prev, ...data.files]);
+        const data = (await response.json()) as { files: UploadedFile[] };
+        await refetchJob();
         toast.success(`${data.files.length} file(s) uploaded successfully`);
+        // Reset file input so same file can be re-selected
+        if (fileInputRef.current) fileInputRef.current.value = "";
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Upload failed");
       } finally {
         setIsUploading(false);
       }
     },
-    [sessionToken]
+    [sessionToken, refetchJob]
   );
 
   const handleDrop = useCallback(
@@ -170,12 +222,11 @@ export default function PrintSession() {
     const file = files.find((f) => f.id === fileId);
     if (!file) return;
     const newCopies = Math.max(1, Math.min(99, file.copies + delta));
-    setFiles((prev) => prev.map((f) => (f.id === fileId ? { ...f, copies: newCopies } : f)));
     updateCopies.mutate({ fileId, copies: newCopies });
   };
 
   const getFileIcon = (fileType: string) => {
-    if (fileType === "jpg" || fileType === "jpeg" || fileType === "png") {
+    if (["jpg", "jpeg", "png"].includes(fileType)) {
       return <Image className="w-4 h-4" />;
     }
     return <FileText className="w-4 h-4" />;
@@ -198,6 +249,7 @@ export default function PrintSession() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // ── Loading states ──
   if (deviceLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -224,6 +276,8 @@ export default function PrintSession() {
       </div>
     );
   }
+
+  const isSessionReady = !!sessionToken && !jobLoading && !createSession.isPending;
 
   return (
     <div className="min-h-screen bg-background">
@@ -280,13 +334,32 @@ export default function PrintSession() {
               </p>
             </div>
 
+            {/* Session initializing indicator */}
+            {!isSessionReady && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Initializing session...</span>
+              </div>
+            )}
+
             {/* Drop zone */}
             <div
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-200 ${
+              onClick={() => {
+                if (!isSessionReady) {
+                  toast.info("Please wait — session is initializing...");
+                  return;
+                }
+                fileInputRef.current?.click();
+              }}
+              className={`relative border-2 border-dashed rounded-2xl p-10 text-center transition-all duration-200 ${
+                isSessionReady ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+              } ${
                 isDragging
                   ? "border-primary bg-accent/40 scale-[1.01]"
                   : "border-border hover:border-primary/50 hover:bg-accent/20"
@@ -339,13 +412,17 @@ export default function PrintSession() {
                               {file.fileName}
                             </p>
                             <span
-                              className={`text-xs px-1.5 py-0.5 rounded border font-medium flex-shrink-0 ${getFileTypeBadge(file.fileType)}`}
+                              className={`text-xs px-1.5 py-0.5 rounded border font-medium flex-shrink-0 ${getFileTypeBadge(
+                                file.fileType
+                              )}`}
                             >
                               {file.fileType.toUpperCase()}
                             </span>
                           </div>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span>{file.pageCount} {file.pageCount === 1 ? "page" : "pages"}</span>
+                            <span>
+                              {file.pageCount} {file.pageCount === 1 ? "page" : "pages"}
+                            </span>
                             <span>·</span>
                             <span>{formatFileSize(file.fileSizeBytes)}</span>
                           </div>
@@ -354,14 +431,20 @@ export default function PrintSession() {
                           {/* Copies control */}
                           <div className="flex items-center gap-1.5">
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleCopiesChange(file.id, -1); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopiesChange(file.id, -1);
+                              }}
                               className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
                             <span className="w-6 text-center text-sm font-semibold">{file.copies}</span>
                             <button
-                              onClick={(e) => { e.stopPropagation(); handleCopiesChange(file.id, 1); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopiesChange(file.id, 1);
+                              }}
                               className="w-7 h-7 rounded-lg border border-border flex items-center justify-center hover:bg-secondary transition-colors"
                             >
                               <Plus className="w-3 h-3" />
@@ -420,8 +503,8 @@ export default function PrintSession() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{file.fileName}</p>
                         <p className="text-xs text-muted-foreground">
-                          {file.pageCount} pages × {file.copies} {file.copies === 1 ? "copy" : "copies"}
-                          {" = "}
+                          {file.pageCount} pages × {file.copies}{" "}
+                          {file.copies === 1 ? "copy" : "copies"} ={" "}
                           <span className="font-medium text-foreground">
                             {file.pageCount * file.copies} pages
                           </span>
@@ -431,9 +514,7 @@ export default function PrintSession() {
                         <p className="text-sm font-semibold text-foreground">
                           {(file.pageCount * file.copies * pricePerPage).toFixed(2)} EGP
                         </p>
-                        <p className="text-xs text-muted-foreground">
-                          {file.copies}× copy
-                        </p>
+                        <p className="text-xs text-muted-foreground">{file.copies}× copy</p>
                       </div>
                     </div>
                     {idx < files.length - 1 && <Separator />}
@@ -466,7 +547,9 @@ export default function PrintSession() {
               <h3 className="text-sm font-semibold text-foreground">Contact info (optional)</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="name" className="text-xs text-muted-foreground">Name</Label>
+                  <Label htmlFor="name" className="text-xs text-muted-foreground">
+                    Name
+                  </Label>
                   <Input
                     id="name"
                     placeholder="Your name"
@@ -476,7 +559,9 @@ export default function PrintSession() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-xs text-muted-foreground">Email</Label>
+                  <Label htmlFor="email" className="text-xs text-muted-foreground">
+                    Email
+                  </Label>
                   <Input
                     id="email"
                     type="email"
@@ -490,15 +575,11 @@ export default function PrintSession() {
             </div>
 
             <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="flex-1 h-11"
-                onClick={() => setStep("upload")}
-              >
+              <Button variant="outline" className="flex-1 h-11" onClick={() => setStep("upload")}>
                 Back
               </Button>
               <Button
-                className="flex-2 h-11 font-semibold flex-1"
+                className="flex-1 h-11 font-semibold"
                 onClick={() => {
                   submitForPayment.mutate({
                     sessionToken: sessionToken ?? "",
@@ -524,9 +605,7 @@ export default function PrintSession() {
           <div className="space-y-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-1">Payment</h1>
-              <p className="text-muted-foreground text-sm">
-                Complete your payment to start printing
-              </p>
+              <p className="text-muted-foreground text-sm">Complete your payment to start printing</p>
             </div>
 
             {/* Amount due */}
@@ -549,7 +628,8 @@ export default function PrintSession() {
                   <div>
                     <p className="text-sm font-medium text-amber-800">MVP Demo Mode</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      In production, this integrates with your payment gateway. For now, click below to simulate a successful payment.
+                      In production, this integrates with your payment gateway. For now, click below
+                      to simulate a successful payment.
                     </p>
                   </div>
                 </div>
@@ -574,11 +654,7 @@ export default function PrintSession() {
               Confirm Payment — {totalCost} EGP
             </Button>
 
-            <Button
-              variant="ghost"
-              className="w-full"
-              onClick={() => setStep("summary")}
-            >
+            <Button variant="ghost" className="w-full" onClick={() => setStep("summary")}>
               Back to summary
             </Button>
           </div>

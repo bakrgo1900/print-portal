@@ -45,3 +45,10 @@
 - [x] Loading states, error handling, empty states
 - [x] Vitest unit tests for core backend logic (22 tests passing)
 - [x] Competitor research report document
+
+## Bug Fixes (Phase 7)
+
+- [x] Fix session persistence: store sessionToken in localStorage so page refresh doesn't create a new session
+- [x] Fix createSession to reuse existing pending session for same device (prevent duplicate sessions)
+- [x] Fix file list sync: load files from server getJob response on mount
+- [x] Test full end-to-end flow: upload → summary → payment confirmation → status page

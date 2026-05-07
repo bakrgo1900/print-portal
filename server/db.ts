@@ -129,6 +129,18 @@ export async function createPrintJob(data: InsertPrintJob) {
   return result[0];
 }
 
+export async function getPendingJobByDeviceId(deviceId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(printJobs)
+    .where(and(eq(printJobs.deviceId, deviceId), eq(printJobs.status, "pending")))
+    .orderBy(desc(printJobs.createdAt))
+    .limit(1);
+  return result[0];
+}
+
 export async function getPrintJobBySessionToken(sessionToken: string) {
   const db = await getDb();
   if (!db) return undefined;

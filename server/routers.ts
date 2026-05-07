@@ -26,6 +26,7 @@ import {
   getSetting,
   setSetting,
   getAdminStats,
+  getPendingJobByDeviceId,
 } from "./db";
 import { listPrinters, testPrintNodeConnection, submitPrintJob } from "./printnode";
 
@@ -142,6 +143,11 @@ export const appRouter = router({
         const device = await getDeviceByQrToken(input.qrToken);
         if (!device || !device.isActive) {
           throw new TRPCError({ code: "NOT_FOUND", message: "Device not found or inactive" });
+        }
+        // Reuse existing pending session if one exists for this device
+        const existingJob = await getPendingJobByDeviceId(device.id);
+        if (existingJob) {
+          return { sessionToken: existingJob.sessionToken, jobId: existingJob.id, device };
         }
         const sessionToken = nanoid(48);
         const job = await createPrintJob({
