@@ -41,15 +41,15 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           <div className="w-14 h-14 rounded-2xl bg-accent mx-auto mb-5 flex items-center justify-center">
             <Printer className="w-7 h-7 text-accent-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">Admin Login</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-2">تسجيل الدخول</h1>
           <p className="text-muted-foreground text-sm mb-6">
-            Sign in to access the PrintPortal admin panel
+            سجّل دخولك للوصول إلى لوحة التحكم
           </p>
           <Button
             className="w-full h-11 font-semibold"
             onClick={() => (window.location.href = getLoginUrl())}
           >
-            Sign in with Manus
+            تسجيل الدخول
           </Button>
         </div>
       </div>

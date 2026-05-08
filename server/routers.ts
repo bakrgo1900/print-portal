@@ -204,6 +204,7 @@ export const appRouter = router({
         z.object({
           sessionToken: z.string(),
           customerName: z.string().optional(),
+          customerPhone: z.string().optional(),
           customerEmail: z.string().email().optional(),
         })
       )
@@ -231,6 +232,7 @@ export const appRouter = router({
           totalPages,
           totalCost,
           customerName: input.customerName ?? null,
+          customerPhone: input.customerPhone ?? null,
           customerEmail: input.customerEmail ?? null,
         });
 

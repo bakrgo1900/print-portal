@@ -60,3 +60,13 @@
 - [x] Add camera/gallery file picker support for mobile (accept images from camera)
 - [x] Make the upload area mobile-friendly with a tap-to-upload button
 - [x] Verify the QR code generated in admin panel uses the correct deployed URL — uses window.location.origin, so always matches the deployed site URL
+
+## User Flow: Replace OAuth with Name+Phone Form
+
+- [ ] Add customerName and customerPhone fields to printJobs table in DB schema
+- [ ] Run DB migration to add the new columns
+- [ ] Add tRPC procedure: session.startWithContact (name + phone → creates/updates job with contact info)
+- [ ] Update PrintSession.tsx: show name+phone form as first step before file upload
+- [ ] Remove any "Sign in" requirement from the user-facing portal pages
+- [ ] Show customer name in admin panel job list and job detail
+- [ ] Test full flow: name+phone → upload → summary → payment → status

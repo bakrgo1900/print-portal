@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE printJobs ADD COLUMN IF NOT EXISTS customerPhone VARCHAR(32) NULL AFTER customerName;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 3jDFD2S1W9XBKMe.b2f34f23463c --database ZTPuvncyQN2akvD76As3Xn --execute ALTER TABLE printJobs ADD COLUMN IF NOT EXISTS customerPhone VARCHAR(32) NULL AFTER customerName;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2610
+}

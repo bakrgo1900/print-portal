@@ -58,6 +58,7 @@ export const printJobs = mysqlTable("printJobs", {
   printNodeJobId: varchar("printNodeJobId", { length: 64 }),
   customerEmail: varchar("customerEmail", { length: 320 }),
   customerName: varchar("customerName", { length: 255 }),
+  customerPhone: varchar("customerPhone", { length: 32 }),
   notes: text("notes"),
   paidAt: timestamp("paidAt"),
   printedAt: timestamp("printedAt"),
