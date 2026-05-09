@@ -5,7 +5,9 @@
  * - Images (JPG, PNG, JPEG): always 1 page
  */
 import mammoth from "mammoth";
-import pdfParse from "pdf-parse";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ numpages: number }>;
 
 export type SupportedFileType = "pdf" | "docx" | "jpg" | "jpeg" | "png";
 
