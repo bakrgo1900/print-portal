@@ -46,7 +46,8 @@ export default function AdminDevices() {
   const [form, setForm] = useState({
     name: "",
     location: "",
-    pricePerPage: "0.50",
+    pricePerPageBW: "0.50",
+    pricePerPageColor: "1.00",
     printNodePrinterId: "",
   });
 
@@ -90,7 +91,7 @@ export default function AdminDevices() {
   });
 
   const resetForm = () => {
-    setForm({ name: "", location: "", pricePerPage: "0.50", printNodePrinterId: "" });
+    setForm({ name: "", location: "", pricePerPageBW: "0.50", pricePerPageColor: "1.00", printNodePrinterId: "" });
   };
 
   const handleCreate = () => {
@@ -101,7 +102,8 @@ export default function AdminDevices() {
     createDevice.mutate({
       name: form.name,
       location: form.location || undefined,
-      pricePerPage: form.pricePerPage,
+      pricePerPageBW: form.pricePerPageBW,
+      pricePerPageColor: form.pricePerPageColor,
       printNodePrinterId: form.printNodePrinterId || undefined,
     });
   };
@@ -112,7 +114,8 @@ export default function AdminDevices() {
       id: editDevice.id,
       name: form.name || undefined,
       location: form.location || undefined,
-      pricePerPage: form.pricePerPage || undefined,
+      pricePerPageBW: form.pricePerPageBW || undefined,
+      pricePerPageColor: form.pricePerPageColor || undefined,
       printNodePrinterId: form.printNodePrinterId || undefined,
     });
   };
@@ -154,17 +157,31 @@ export default function AdminDevices() {
           onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
         />
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="price" className="text-sm">Price per Page (EGP)</Label>
-        <Input
-          id="price"
-          type="number"
-          step="0.01"
-          min="0"
-          placeholder="0.50"
-          value={form.pricePerPage}
-          onChange={(e) => setForm((p) => ({ ...p, pricePerPage: e.target.value }))}
-        />
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="priceBW" className="text-sm">B&W Price / Page</Label>
+          <Input
+            id="priceBW"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="0.50"
+            value={form.pricePerPageBW}
+            onChange={(e) => setForm((p) => ({ ...p, pricePerPageBW: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="priceColor" className="text-sm">Color Price / Page</Label>
+          <Input
+            id="priceColor"
+            type="number"
+            step="0.01"
+            min="0"
+            placeholder="1.00"
+            value={form.pricePerPageColor}
+            onChange={(e) => setForm((p) => ({ ...p, pricePerPageColor: e.target.value }))}
+          />
+        </div>
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="printer" className="text-sm">PrintNode Printer ID</Label>
@@ -275,17 +292,23 @@ export default function AdminDevices() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-secondary/50 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground mb-0.5">Price/page</p>
+                    <p className="text-xs text-muted-foreground mb-0.5">B&W/page</p>
                     <p className="text-sm font-semibold text-foreground">
-                      {parseFloat(device.pricePerPage?.toString() ?? "0").toFixed(2)} EGP
+                      {parseFloat((device as any).pricePerPageBW?.toString() ?? device.pricePerPage?.toString() ?? "0").toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-secondary/50 rounded-lg p-3">
+                    <p className="text-xs text-muted-foreground mb-0.5">Color/page</p>
+                    <p className="text-sm font-semibold text-foreground">
+                      {parseFloat((device as any).pricePerPageColor?.toString() ?? "1.00").toFixed(2)}
                     </p>
                   </div>
                   <div className="bg-secondary/50 rounded-lg p-3">
                     <p className="text-xs text-muted-foreground mb-0.5">Printer</p>
                     <p className="text-sm font-semibold text-foreground truncate">
-                      {device.printNodePrinterId ? `ID: ${device.printNodePrinterId}` : "Not set"}
+                      {device.printNodePrinterId ? `#${device.printNodePrinterId}` : "—"}
                     </p>
                   </div>
                 </div>
@@ -309,7 +332,8 @@ export default function AdminDevices() {
                       setForm({
                         name: device.name,
                         location: device.location ?? "",
-                        pricePerPage: device.pricePerPage?.toString() ?? "0.50",
+                        pricePerPageBW: (device as any).pricePerPageBW?.toString() ?? device.pricePerPage?.toString() ?? "0.50",
+                        pricePerPageColor: (device as any).pricePerPageColor?.toString() ?? "1.00",
                         printNodePrinterId: device.printNodePrinterId ?? "",
                       });
                     }}

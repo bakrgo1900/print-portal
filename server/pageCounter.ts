@@ -1,34 +1,34 @@
 /**
  * Page count detection for uploaded files.
- * - PDF: scans raw bytes for /Type /Page entries (no heavy parser needed)
+ * - PDF: uses pdf-parse for accurate page counting
  * - DOCX: uses mammoth to extract text, estimates pages from word count (~300 words/page)
  * - Images (JPG, PNG, JPEG): always 1 page
  */
 import mammoth from "mammoth";
+import pdfParse from "pdf-parse";
 
 export type SupportedFileType = "pdf" | "docx" | "jpg" | "jpeg" | "png";
 
 /**
- * Count pages in a PDF buffer by scanning raw bytes for /Type /Page markers.
- * Avoids heavy PDF parsing while still being accurate for standard PDFs.
+ * Count pages in a PDF buffer using pdf-parse.
  */
-function countPdfPages(buffer: Buffer): number {
+async function countPdfPages(buffer: Buffer): Promise<number> {
   try {
-    const text = buffer.toString("latin1");
-    // Count /Type /Page entries — note: /Pages (plural) is the catalog node, not a page
-    const pageMatches = text.match(/\/Type\s*\/Page[^s]/g);
-    if (pageMatches && pageMatches.length > 0) {
-      return pageMatches.length;
-    }
-    // Fallback: look for /Count in the Pages dictionary
-    const countMatch = text.match(/\/Count\s+(\d+)/);
-    if (countMatch && countMatch[1]) {
-      const count = parseInt(countMatch[1], 10);
-      if (!isNaN(count) && count > 0) return count;
-    }
-    return 1;
+    const data = await pdfParse(buffer);
+    return data.numpages > 0 ? data.numpages : 1;
   } catch (err) {
-    console.error("[PageCounter] PDF parse error:", err);
+    console.error("[PageCounter] pdf-parse error, falling back to raw scan:", err);
+    // Fallback: raw byte scan
+    try {
+      const text = buffer.toString("latin1");
+      const pageMatches = text.match(/\/Type\s*\/Page[^s]/g);
+      if (pageMatches && pageMatches.length > 0) return pageMatches.length;
+      const countMatch = text.match(/\/Count\s+(\d+)/);
+      if (countMatch && countMatch[1]) {
+        const count = parseInt(countMatch[1], 10);
+        if (!isNaN(count) && count > 0) return count;
+      }
+    } catch {}
     return 1;
   }
 }

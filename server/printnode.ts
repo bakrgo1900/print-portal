@@ -83,7 +83,8 @@ export async function submitPrintJob(
   printerId: number,
   title: string,
   pdfBase64: string,
-  copies: number = 1
+  copies: number = 1,
+  colorMode: "bw" | "color" = "bw"
 ): Promise<number> {
   const payload = {
     printerId,
@@ -93,6 +94,7 @@ export async function submitPrintJob(
     source: "PrintPortal",
     options: {
       copies,
+      color: colorMode === "color",
     },
   };
 

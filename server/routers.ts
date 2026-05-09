@@ -67,6 +67,8 @@ export const appRouter = router({
           location: z.string().optional(),
           printNodePrinterId: z.string().optional(),
           pricePerPage: z.string().default("0.50"),
+          pricePerPageBW: z.string().default("0.50"),
+          pricePerPageColor: z.string().default("1.00"),
         })
       )
       .mutation(async ({ input }) => {
@@ -75,7 +77,9 @@ export const appRouter = router({
           name: input.name,
           location: input.location ?? null,
           printNodePrinterId: input.printNodePrinterId ?? null,
-          pricePerPage: input.pricePerPage,
+          pricePerPage: input.pricePerPageBW,
+          pricePerPageBW: input.pricePerPageBW,
+          pricePerPageColor: input.pricePerPageColor,
           qrToken,
           isActive: 1,
         });
@@ -89,11 +93,15 @@ export const appRouter = router({
           location: z.string().optional(),
           printNodePrinterId: z.string().optional(),
           pricePerPage: z.string().optional(),
+          pricePerPageBW: z.string().optional(),
+          pricePerPageColor: z.string().optional(),
           isActive: z.number().optional(),
         })
       )
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
+        // Keep pricePerPage in sync with BW price
+        if (data.pricePerPageBW) data.pricePerPage = data.pricePerPageBW;
         return updateDevice(id, data);
       }),
 
@@ -134,6 +142,8 @@ export const appRouter = router({
           name: device.name,
           location: device.location,
           pricePerPage: device.pricePerPage,
+          pricePerPageBW: device.pricePerPageBW ?? device.pricePerPage,
+          pricePerPageColor: device.pricePerPageColor ?? device.pricePerPage,
         };
       }),
 
@@ -192,6 +202,13 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    updateFileColorMode: publicProcedure
+      .input(z.object({ fileId: z.number(), colorMode: z.enum(["bw", "color"]) }))
+      .mutation(async ({ input }) => {
+        await updatePrintJobFile(input.fileId, { colorMode: input.colorMode });
+        return { success: true };
+      }),
+
     deleteFile: publicProcedure
       .input(z.object({ fileId: z.number() }))
       .mutation(async ({ input }) => {
@@ -219,24 +236,28 @@ export const appRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "No files uploaded" });
         }
 
-        // Recalculate totals
+        // Recalculate totals using per-file color mode pricing
         const device = await getDeviceById(job.deviceId);
-        const pricePerPage = parseFloat(device?.pricePerPage?.toString() ?? "0.50");
+        const priceBW = parseFloat(device?.pricePerPageBW?.toString() ?? device?.pricePerPage?.toString() ?? "0.50");
+        const priceColor = parseFloat(device?.pricePerPageColor?.toString() ?? device?.pricePerPage?.toString() ?? "1.00");
         let totalPages = 0;
+        let totalCost = 0;
         for (const file of files) {
-          totalPages += (file.pageCount ?? 1) * (file.copies ?? 1);
+          const pages = (file.pageCount ?? 1) * (file.copies ?? 1);
+          totalPages += pages;
+          totalCost += pages * (file.colorMode === "color" ? priceColor : priceBW);
         }
-        const totalCost = (totalPages * pricePerPage).toFixed(2);
 
+        const totalCostStr = totalCost.toFixed(2);
         await updatePrintJobBySessionToken(input.sessionToken, {
           totalPages,
-          totalCost,
+          totalCost: totalCostStr,
           customerName: input.customerName ?? null,
           customerPhone: input.customerPhone ?? null,
           customerEmail: input.customerEmail ?? null,
         });
 
-        return { success: true, totalPages, totalCost, jobId: job.id };
+        return { success: true, totalPages, totalCost: totalCostStr, jobId: job.id };
       }),
 
     // Simulate payment confirmation (MVP: manual trigger)
@@ -416,7 +437,8 @@ async function dispatchPrintJob(jobId: number): Promise<void> {
           printerId,
           `${file.fileName} (Job #${jobId})`,
           pdfBase64,
-          file.copies ?? 1
+          file.copies ?? 1,
+          (file.colorMode ?? "bw") as "bw" | "color"
         );
 
         await updatePrintJob(jobId, { printNodeJobId: String(printNodeJobId) });

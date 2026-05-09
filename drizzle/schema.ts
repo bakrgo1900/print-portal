@@ -34,6 +34,8 @@ export const devices = mysqlTable("devices", {
   location: varchar("location", { length: 255 }),
   printNodePrinterId: varchar("printNodePrinterId", { length: 64 }),
   pricePerPage: decimal("pricePerPage", { precision: 10, scale: 2 }).notNull().default("0.50"),
+  pricePerPageBW: decimal("pricePerPageBW", { precision: 10, scale: 2 }).notNull().default("0.50"),
+  pricePerPageColor: decimal("pricePerPageColor", { precision: 10, scale: 2 }).notNull().default("1.00"),
   qrToken: varchar("qrToken", { length: 128 }).notNull().unique(),
   isActive: int("isActive").default(1).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -81,6 +83,7 @@ export const printJobFiles = mysqlTable("printJobFiles", {
   fileUrl: varchar("fileUrl", { length: 1000 }).notNull(),
   pageCount: int("pageCount").default(1).notNull(),
   copies: int("copies").default(1).notNull(),
+  colorMode: mysqlEnum("colorMode", ["bw", "color"]).default("bw").notNull(),
   fileSizeBytes: int("fileSizeBytes").default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });

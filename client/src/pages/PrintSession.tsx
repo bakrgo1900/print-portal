@@ -30,6 +30,7 @@ type UploadedFile = {
   fileType: string;
   pageCount: number;
   copies: number;
+  colorMode: "bw" | "color";
   fileSizeBytes: number;
 };
 
@@ -111,6 +112,7 @@ export default function PrintSession() {
     fileType: f.fileType,
     pageCount: f.pageCount,
     copies: f.copies,
+    colorMode: ((f as any).colorMode ?? "bw") as "bw" | "color",
     fileSizeBytes: f.fileSizeBytes ?? 0,
   }));
 
@@ -145,11 +147,19 @@ export default function PrintSession() {
     onSuccess: () => refetchJob(),
   });
 
+  const updateColorMode = trpc.session.updateFileColorMode.useMutation({
+    onSuccess: () => refetchJob(),
+  });
+
   const handleCopiesChange = (fileId: number, delta: number) => {
     const file = files.find((f) => f.id === fileId);
     if (!file) return;
     const newCopies = Math.max(1, Math.min(99, file.copies + delta));
     updateCopies.mutate({ fileId, copies: newCopies });
+  };
+
+  const handleColorModeToggle = (fileId: number, mode: "bw" | "color") => {
+    updateColorMode.mutate({ fileId, colorMode: mode });
   };
 
   const deleteFile = trpc.session.deleteFile.useMutation({
@@ -169,9 +179,13 @@ export default function PrintSession() {
     onError: (err) => toast.error("فشل تأكيد الدفع: " + err.message),
   });
 
-  const pricePerPage = parseFloat(device?.pricePerPage?.toString() ?? "0.50");
+  const priceBW = parseFloat((device as any)?.pricePerPageBW?.toString() ?? device?.pricePerPage?.toString() ?? "0.50");
+  const priceColor = parseFloat((device as any)?.pricePerPageColor?.toString() ?? "1.00");
   const totalPages = files.reduce((sum, f) => sum + f.pageCount * f.copies, 0);
-  const totalCost = (totalPages * pricePerPage).toFixed(2);
+  const totalCost = files.reduce((sum, f) => {
+    const pages = f.pageCount * f.copies;
+    return sum + pages * (f.colorMode === "color" ? priceColor : priceBW);
+  }, 0).toFixed(2);
 
   const handleFileUpload = useCallback(
     async (fileList: FileList) => {
@@ -272,8 +286,9 @@ export default function PrintSession() {
               )}
             </div>
           </div>
-          <div className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{pricePerPage.toFixed(2)} ر.س</span> / صفحة
+          <div className="text-xs text-muted-foreground space-x-2 flex gap-3">
+            <span>أسود: <span className="font-medium text-foreground">{priceBW.toFixed(2)}</span> ر.س</span>
+            <span>ملون: <span className="font-medium text-foreground">{priceColor.toFixed(2)}</span> ر.س</span>
           </div>
         </div>
       </header>
@@ -477,7 +492,22 @@ export default function PrintSession() {
                             <span>{formatFileSize(file.fileSizeBytes)}</span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                          {/* Color mode toggle */}
+                          <div className="flex items-center rounded-lg border border-border overflow-hidden text-xs font-medium">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleColorModeToggle(file.id, "bw"); }}
+                              className={`px-2 py-1 transition-colors ${file.colorMode === "bw" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}
+                            >
+                              أسود
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleColorModeToggle(file.id, "color"); }}
+                              className={`px-2 py-1 transition-colors ${file.colorMode === "color" ? "bg-primary text-primary-foreground" : "hover:bg-secondary text-muted-foreground"}`}
+                            >
+                              ملون
+                            </button>
+                          </div>
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={(e) => { e.stopPropagation(); handleCopiesChange(file.id, -1); }}
@@ -492,13 +522,13 @@ export default function PrintSession() {
                             >
                               <Plus className="w-3 h-3" />
                             </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); deleteFile.mutate({ fileId: file.id }); }}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-destructive/10 hover:text-destructive transition-colors text-muted-foreground"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deleteFile.mutate({ fileId: file.id }); }}
-                            className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-destructive/10 hover:text-destructive transition-colors text-muted-foreground"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </div>
                     </CardContent>
@@ -556,13 +586,17 @@ export default function PrintSession() {
                         <p className="text-xs text-muted-foreground">
                           {file.pageCount} صفحة × {file.copies} نسخة ={" "}
                           <span className="font-medium text-foreground">{file.pageCount * file.copies} صفحة</span>
+                          {" · "}
+                          <span className={`font-medium ${file.colorMode === "color" ? "text-blue-600" : "text-foreground"}`}>
+                            {file.colorMode === "color" ? "ملون" : "أسود"}
+                          </span>
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-semibold text-foreground">
-                          {(file.pageCount * file.copies * pricePerPage).toFixed(2)} ر.س
+                          {(file.pageCount * file.copies * (file.colorMode === "color" ? priceColor : priceBW)).toFixed(2)} ر.س
                         </p>
-                        <p className="text-xs text-muted-foreground">{file.copies}× نسخة</p>
+                        <p className="text-xs text-muted-foreground">{(file.colorMode === "color" ? priceColor : priceBW).toFixed(2)} ر.س/ص</p>
                       </div>
                     </div>
                     {idx < files.length - 1 && <Separator />}
@@ -579,8 +613,12 @@ export default function PrintSession() {
                   <span className="font-medium text-foreground">{totalPages}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">سعر الصفحة</span>
-                  <span className="font-medium text-foreground">{pricePerPage.toFixed(2)} ر.س</span>
+                  <span className="text-muted-foreground">سعر أسود وأبيض / صفحة</span>
+                  <span className="font-medium text-foreground">{priceBW.toFixed(2)} ر.س</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">سعر ملون / صفحة</span>
+                  <span className="font-medium text-foreground">{priceColor.toFixed(2)} ر.س</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between">
@@ -631,7 +669,7 @@ export default function PrintSession() {
                 <p className="text-4xl font-bold text-primary">{totalCost}</p>
                 <p className="text-sm text-muted-foreground mt-1">ريال سعودي</p>
                 <p className="text-xs text-muted-foreground mt-3">
-                  {totalPages} صفحة × {pricePerPage.toFixed(2)} ر.س/صفحة
+                  {totalPages} صفحة — أسود: {priceBW.toFixed(2)} / ملون: {priceColor.toFixed(2)} ر.س
                 </p>
               </CardContent>
             </Card>
