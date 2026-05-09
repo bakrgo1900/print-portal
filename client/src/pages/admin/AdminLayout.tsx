@@ -1,5 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { getLoginUrl } from "@/const";
+import AdminLogin from "./AdminLogin";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Link, useLocation } from "wouter";
@@ -35,25 +35,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="max-w-sm w-full text-center">
-          <div className="w-14 h-14 rounded-2xl bg-accent mx-auto mb-5 flex items-center justify-center">
-            <Printer className="w-7 h-7 text-accent-foreground" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground mb-2">تسجيل الدخول</h1>
-          <p className="text-muted-foreground text-sm mb-6">
-            سجّل دخولك للوصول إلى لوحة التحكم
-          </p>
-          <Button
-            className="w-full h-11 font-semibold"
-            onClick={() => (window.location.href = getLoginUrl())}
-          >
-            تسجيل الدخول
-          </Button>
-        </div>
-      </div>
-    );
+    return <AdminLogin onSuccess={() => window.location.reload()} />;
   }
 
   if (user?.role !== "admin") {

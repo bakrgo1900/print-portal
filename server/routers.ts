@@ -29,6 +29,7 @@ import {
   getPendingJobByDeviceId,
 } from "./db";
 import { listPrinters, testPrintNodeConnection, submitPrintJob } from "./printnode";
+import { storageReadBuffer } from "./storage";
 
 // ─── Admin-only middleware ────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ export const appRouter = router({
       return { success: true } as const;
     }),
   }),
+  // kept for compat — login is handled by POST /api/auth/login directly
 
   // ─── Devices ───────────────────────────────────────────────────────────────
 
@@ -409,27 +411,14 @@ async function dispatchPrintJob(jobId: number): Promise<void> {
 
     const printerId = parseInt(device.printNodePrinterId);
 
-    // For MVP: dispatch each file as a separate print job
+    // Dispatch each file as a separate print job
     for (const file of files) {
       try {
-        // Fetch the file from storage
-        const fileResponse = await fetch(
-          `${process.env.BUILT_IN_FORGE_API_URL?.replace(/\/+$/, "")}/v1/storage/presign/get?path=${encodeURIComponent(file.fileKey)}`,
-          {
-            headers: { Authorization: `Bearer ${process.env.BUILT_IN_FORGE_API_KEY}` },
-          }
-        );
-
-        if (!fileResponse.ok) {
-          console.error(`[PrintDispatch] Failed to get presigned URL for file ${file.id}`);
+        if (!file.fileKey) {
+          console.error(`[PrintDispatch] File ${file.id} has no fileKey`);
           continue;
         }
-
-        const { url: presignedUrl } = (await fileResponse.json()) as { url: string };
-        const fileDataResponse = await fetch(presignedUrl);
-        if (!fileDataResponse.ok) continue;
-
-        const fileBuffer = Buffer.from(await fileDataResponse.arrayBuffer());
+        const fileBuffer = await storageReadBuffer(file.fileKey);
         const pdfBase64 = fileBuffer.toString("base64");
 
         const printNodeJobId = await submitPrintJob(

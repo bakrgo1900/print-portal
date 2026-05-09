@@ -11,6 +11,7 @@ import { Router } from "express";
 import { getPrintJobBySessionToken, updatePrintJobBySessionToken, getPrintJobById, updatePrintJob, getDeviceById, getFilesByJobId } from "./db";
 import { getSetting } from "./db";
 import { submitPrintJob } from "./printnode";
+import { storageReadBuffer } from "./storage";
 import { nanoid } from "nanoid";
 
 export function createPaymentWebhookRouter(): Router {
@@ -95,25 +96,10 @@ async function dispatchPrintJobAsync(jobId: number): Promise<void> {
     await updatePrintJob(jobId, { status: "printing" });
 
     const printerId = parseInt(device.printNodePrinterId);
-    const forgeApiUrl = process.env.BUILT_IN_FORGE_API_URL?.replace(/\/+$/, "");
-    const forgeApiKey = process.env.BUILT_IN_FORGE_API_KEY;
-
     for (const file of files) {
       try {
-        if (!forgeApiUrl || !forgeApiKey) continue;
-
-        const presignResp = await fetch(
-          `${forgeApiUrl}/v1/storage/presign/get?path=${encodeURIComponent(file.fileKey)}`,
-          { headers: { Authorization: `Bearer ${forgeApiKey}` } }
-        );
-
-        if (!presignResp.ok) continue;
-
-        const { url: presignedUrl } = (await presignResp.json()) as { url: string };
-        const fileDataResp = await fetch(presignedUrl);
-        if (!fileDataResp.ok) continue;
-
-        const fileBuffer = Buffer.from(await fileDataResp.arrayBuffer());
+        if (!file.fileKey) continue;
+        const fileBuffer = await storageReadBuffer(file.fileKey);
         const pdfBase64 = fileBuffer.toString("base64");
 
         const printNodeJobId = await submitPrintJob(
