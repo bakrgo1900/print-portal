@@ -96,7 +96,7 @@ export type InsertPrintJobFile = typeof printJobFiles.$inferInsert;
  */
 export const settings = mysqlTable("settings", {
   id: int("id").autoincrement().primaryKey(),
-  key: varchar("key", { length: 128 }).notNull().unique(),
+  key: varchar("key_name", { length: 128 }).notNull().unique(),
   value: text("value"),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
